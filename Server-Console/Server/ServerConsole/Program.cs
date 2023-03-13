@@ -40,6 +40,10 @@ public class ServerConsole
     public static int Main(String[] args)
     {
         StartServer();
+        while(true)
+        {
+
+        }
         return 0;
     }
 
@@ -109,12 +113,13 @@ public class ServerConsole
                 string name = Encoding.ASCII.GetString(recvBuffer, 4, recv - 4);
                 playerDList.Add(headerBuffer[1], new Player(pSocket, headerBuffer[1], name));
 
+
                 if(playerDList.ContainsKey(headerBuffer[1]))
                 {
                     Task.Run(() => { PlayerTCPReceive(headerBuffer[1]); }, playerDList[headerBuffer[1]].playerCTS.Token);
                 }
 
-                Console.WriteLine("");
+                Console.WriteLine("Player Connected: ID: " + headerBuffer[1] + " Name: " + name);
             }
         }
         catch (Exception ex)
