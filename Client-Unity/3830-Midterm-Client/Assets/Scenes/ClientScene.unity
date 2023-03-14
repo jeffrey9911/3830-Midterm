@@ -1628,7 +1628,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &547686473
 RectTransform:
   m_ObjectHideFlags: 0
@@ -1955,6 +1955,7 @@ MonoBehaviour:
   _inp_port: {fileID: 173841597}
   _inp_message: {fileID: 1727985854}
   _panelLogin: {fileID: 547686472}
+  _player: {fileID: 1368838273}
 --- !u!4 &852550993
 Transform:
   m_ObjectHideFlags: 0
@@ -3423,8 +3424,8 @@ GameObject:
   - component: {fileID: 1368838274}
   - component: {fileID: 1368838278}
   m_Layer: 0
-  m_Name: Cube
-  m_TagString: Untagged
+  m_Name: Player
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0

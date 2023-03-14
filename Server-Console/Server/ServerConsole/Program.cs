@@ -245,11 +245,28 @@ public class ServerConsole
         {
             case 0:
                 short pid = GetID(recvBuffer);
+                Console.WriteLine(pid.ToString());
                 if(playerDList.ContainsKey(pid))
                 {
                     Buffer.BlockCopy(GetContent(recvBuffer), 0, playerDList[pid].playerPosition, 0, 12);
 
-                    short[] header = { 0 };
+                    short[] header = { 0, -1 };
+
+                    byte[] allTrans = new byte[2 + playerDList.Count * 14];
+                    Buffer.BlockCopy(header, 0, allTrans, 0, 2);
+
+                    int ind = 0;
+                    foreach(Player player in playerDList.Values)
+                    {
+                        header[1] = player.playerID;
+                        Buffer.BlockCopy(header, 2, allTrans, ind * 14, 2);
+                        Buffer.BlockCopy(player.playerPosition, 0, allTrans, ind * 14 + 2, 12);
+                        ind++;
+                    }
+
+                    Console.WriteLine(allTrans.Length);
+
+                    serverUDP.Send(allTrans, clientEP);
 
                 }
                 break;

@@ -60,6 +60,7 @@ public class NetworkManager : MonoBehaviour
         IPAddress ip = Dns.GetHostAddresses("jeffrey9911.ddns.net")[0];
         serverTCPEP = new IPEndPoint(ip, 8888/*int.Parse(_inp_port.text)*/);
         serverUDPEP = new IPEndPoint(ip, 8889/*int.Parse(_inp_port.text)*/);
+        //serverUDPEP = new IPEndPoint(IPAddress.Any, 0/*int.Parse(_inp_port.text)*/);
 
         clientTCPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         clientUDPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
@@ -88,6 +89,7 @@ public class NetworkManager : MonoBehaviour
 
             clientTCPSocket.Send(loginMsg);
             isReady = true;
+            Task.Run(() => { ClientUDPReceive(); }, cts.Token);
             ClientTCPReceive();
         }
         catch (Exception ex)
@@ -144,6 +146,23 @@ public class NetworkManager : MonoBehaviour
         Buffer.BlockCopy(fPos, 0, byPosWH, 4, byPosWH.Length - 4);
 
         clientUDPSocket.SendTo(byPosWH, serverUDPEP);
+        //clientUDP.Send(byPosWH, byPosWH.Length, serverUDPEP);
+    }
+
+    static void ClientUDPReceive()
+    {
+        try
+        {
+            byte[] getBuffer = new byte[1024];
+            int recv = clientUDPSocket.Receive(getBuffer);
+
+            Debug.Log(GetHeader(getBuffer));
+        }
+        catch (Exception ex)
+        {
+            Debug.LogException(ex);
+            throw;
+        }
     }
 
     static short GetHeader(byte[] header)
