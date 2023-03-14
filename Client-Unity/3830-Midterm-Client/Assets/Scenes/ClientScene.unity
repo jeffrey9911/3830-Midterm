@@ -1979,7 +1979,7 @@ MonoBehaviour:
   m_GameObject: {fileID: 852550991}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 957b54c27d4e6124d9191939b2dc91fc, type: 3}
+  m_Script: {fileID: 11500000, guid: ef64cc008be481f4ba4be4e09f2e057f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
 --- !u!1 &910683290
@@ -2761,6 +2761,7 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 2090804111}
+  - {fileID: 1378167218}
   - {fileID: 547686473}
   m_Father: {fileID: 0}
   m_RootOrder: 6
@@ -3530,8 +3531,9 @@ GameObject:
   - component: {fileID: 1378167221}
   - component: {fileID: 1378167220}
   - component: {fileID: 1378167219}
+  - component: {fileID: 1378167222}
   m_Layer: 5
-  m_Name: BTN_Close
+  m_Name: BTN_PanelControl
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3544,18 +3546,18 @@ RectTransform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1378167217}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1718712424}
-  m_Father: {fileID: 2090804111}
+  m_Father: {fileID: 1105232313}
   m_RootOrder: -1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 185.3, y: 228.03}
+  m_AnchoredPosition: {x: 427.44055, y: 228.03}
   m_SizeDelta: {x: 35.1211, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1378167219
@@ -3601,7 +3603,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1378167220}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 1378167222}
+        m_TargetAssemblyTypeName: PanelControl, Assembly-CSharp
+        m_MethodName: PanelCon
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1378167220
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3640,6 +3654,20 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1378167217}
   m_CullTransparentMesh: 1
+--- !u!114 &1378167222
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1378167217}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 725e7607fcf5c5f44953eb67b54e7fae, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  _chatPanel: {fileID: 2090804110}
+  _btnText: {fileID: 1718712425}
 --- !u!1 &1524351409
 GameObject:
   m_ObjectHideFlags: 0
@@ -4687,7 +4715,6 @@ RectTransform:
   - {fileID: 170392944}
   - {fileID: 1727985853}
   - {fileID: 537643527}
-  - {fileID: 1378167218}
   m_Father: {fileID: 1105232313}
   m_RootOrder: -1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}

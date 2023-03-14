@@ -105,6 +105,7 @@ public class ServerConsole
             serverTCP.Listen(10);
 
             Task.Run(() => { TCPAccept(); }, mainCts.Token);
+            Task.Run(() => { ServerUDPReceive(); }, mainCts.Token);
         }
         catch (Exception ex)
         {
@@ -199,7 +200,7 @@ public class ServerConsole
                         string content = Encoding.ASCII.GetString(recvBuffer, 4, recv - 4);
                         
 
-                        string chatPiece = "[" + playerDList[pID].playerName + " - " + DateTime.Now.ToString("MM/dd hh:mm:ss tt") + "]: " + content;
+                        string chatPiece = "[" + playerDList[pID].playerName + " - " + DateTime.Now.ToString("MM/dd hh:mm:ss tt") + "]: \n" + content;
                         chatList.Add(chatPiece);
 
                         byte[] byPiece = Encoding.ASCII.GetBytes(chatPiece);
@@ -212,10 +213,6 @@ public class ServerConsole
                         foreach(Player player in playerDList.Values)
                         {
                             player.playerTCPSocket.Send(msgToSend);
-                            if (player.playerID != pID)
-                            {
-                                
-                            }
                         }
 
                         break;
@@ -240,7 +237,48 @@ public class ServerConsole
 
     static void ServerUDPReceive()
     {
+        byte[] recvBuffer = new byte[1024];
+        IPEndPoint clientEP = new IPEndPoint(IPAddress.Any, 0);
+        recvBuffer = serverUDP.Receive(ref clientEP);
 
+        switch(GetHeader(recvBuffer))
+        {
+            case 0:
+                short pid = GetID(recvBuffer);
+                if(playerDList.ContainsKey(pid))
+                {
+                    Buffer.BlockCopy(GetContent(recvBuffer), 0, playerDList[pid].playerPosition, 0, 12);
+
+                    short[] header = { 0 };
+
+                }
+                break;
+
+            default:
+                break;
+        }
+        ServerUDPReceive();
+    }
+
+    static short GetHeader(byte[] header)
+    {
+        short[] sheader = new short[1];
+        Buffer.BlockCopy(header, 0, sheader, 0, 2);
+        return sheader[0];
+    }
+
+    static short GetID(byte[] header)
+    {
+        short[] sheader = new short[1];
+        Buffer.BlockCopy(header, 2, sheader, 0, 2);
+        return sheader[0];
+    }
+
+    static byte[] GetContent(byte[] buffer)
+    {
+        byte[] returnBy = new byte[buffer.Length - 2];
+        Buffer.BlockCopy(buffer, 2, returnBy, 0, returnBy.Length);
+        return returnBy;
     }
 
     static void OnCancelKeyPress(object sender, ConsoleCancelEventArgs args)

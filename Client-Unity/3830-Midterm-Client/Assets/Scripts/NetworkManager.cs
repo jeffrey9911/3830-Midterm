@@ -15,6 +15,7 @@ using TMPro;
 using Unity.VisualScripting;
 using System.Threading;
 using UnityEngine.Analytics;
+using UnityEngine.UIElements;
 
 public class NetworkManager : MonoBehaviour
 {
@@ -24,8 +25,9 @@ public class NetworkManager : MonoBehaviour
 
     public TMP_InputField _inp_message;
 
-
     public GameObject _panelLogin;
+
+    public GameObject _player;
 
     private static System.Random rand = new System.Random();
 
@@ -33,15 +35,31 @@ public class NetworkManager : MonoBehaviour
     private static short localPlayerID;
     private string localPlayerName;
 
-    private static IPEndPoint serverEP;
+    private static IPEndPoint serverTCPEP;
+    private static IPEndPoint serverUDPEP;
     private static Socket clientTCPSocket;
     private static Socket clientUDPSocket;
+
+    static bool isReady = false;
+
+    float updateInterval = 1.0f;
+    float timer = 0.0f;
+    private void Update()
+    {
+        timer += Time.deltaTime;
+        if(timer >= updateInterval && isReady)
+        {
+            ClientUDPPosition();
+            timer -= updateInterval;
+        }
+    }
 
     public void LoginToServer()
     {
         //IPAddress ip = IPAddress.Parse(_inp_ip.text);
         IPAddress ip = Dns.GetHostAddresses("jeffrey9911.ddns.net")[0];
-        serverEP = new IPEndPoint(ip, 8888/*int.Parse(_inp_port.text)*/);
+        serverTCPEP = new IPEndPoint(ip, 8888/*int.Parse(_inp_port.text)*/);
+        serverUDPEP = new IPEndPoint(ip, 8889/*int.Parse(_inp_port.text)*/);
 
         clientTCPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         clientUDPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
@@ -57,10 +75,10 @@ public class NetworkManager : MonoBehaviour
     {
         try
         {
-            clientTCPSocket.Connect(serverEP);
+            clientTCPSocket.Connect(serverTCPEP);
             // Connected
 
-            short localPlayerID = (short)rand.Next(1000, 9999);
+            localPlayerID = (short)rand.Next(1000, 9999);
             short[] headerBuffer = { 0, localPlayerID };
             byte[] pName = Encoding.ASCII.GetBytes(playername);
             byte[] loginMsg = new byte[headerBuffer.Length * 2 + pName.Length];
@@ -69,6 +87,7 @@ public class NetworkManager : MonoBehaviour
             Buffer.BlockCopy(pName, 0, loginMsg, 4, pName.Length);
 
             clientTCPSocket.Send(loginMsg);
+            isReady = true;
             ClientTCPReceive();
         }
         catch (Exception ex)
@@ -111,6 +130,22 @@ public class NetworkManager : MonoBehaviour
         
     }
 
+    void ClientUDPPosition()
+    {
+        float[] fPos =
+        {
+            _player.transform.position.x,
+            _player.transform.position.y,
+            _player.transform.position.z
+        };
+
+        byte[] byPosWH = new byte[fPos.Length * 4 + 4];
+        Buffer.BlockCopy(CreateHeader(0), 0, byPosWH, 0, 4);
+        Buffer.BlockCopy(fPos, 0, byPosWH, 4, byPosWH.Length - 4);
+
+        clientUDPSocket.SendTo(byPosWH, serverUDPEP);
+    }
+
     static short GetHeader(byte[] header)
     {
         short[] sheader = new short[1];
@@ -141,10 +176,9 @@ public class NetworkManager : MonoBehaviour
 
     public void SendMessage()
     {
-        short[] shorts = { 1, localPlayerID };
         byte[] text = Encoding.ASCII.GetBytes(_inp_message.text);
         byte[] msg = new byte[text.Length + 4];
-        Buffer.BlockCopy(shorts, 0, msg, 0, 4);
+        Buffer.BlockCopy(CreateHeader(1), 0, msg, 0, 4);
         Buffer.BlockCopy(text, 0, msg, 4, text.Length);
         clientTCPSocket.Send(msg);
         _inp_message.text = "";
