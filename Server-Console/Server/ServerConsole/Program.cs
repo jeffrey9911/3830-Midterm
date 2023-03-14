@@ -13,6 +13,7 @@ public struct Player
     public short playerID { get; set; }
     public string playerName {  get; set; }
     public Socket playerTCPSocket { get; set; }
+    public IPEndPoint playerUDPEP { get; set; }
     public float[] playerPosition { get; set; }
 
     public Player(Socket consSocket, short consID, string consName)
@@ -37,27 +38,67 @@ public class ServerConsole
     public static List<string> chatList = new List<string>();
 
 
+    static void PrintPlayerList()
+    {
+        DateTime previousTime = DateTime.Now;
+
+        double timer = 0.0;
+        double interval = 1.0;
+
+        while (true)
+        {
+            DateTime currentTime = DateTime.Now;
+
+            double deltaTime = (currentTime - previousTime).TotalSeconds;
+            timer += deltaTime;
+
+            if (timer >= interval)
+            {
+                if(playerDList.Count > 0)
+                {
+                    foreach (Player player in playerDList.Values)
+                    {
+                        Console.WriteLine("==========================================");
+                        Console.WriteLine("ID: {0}, Name: {1}", player.playerID, player.playerName);
+                        Console.WriteLine("POS: {0}, {1}, {2}", player.playerPosition[0], player.playerPosition[1], player.playerPosition[2]);
+                        Console.WriteLine("==========================================");
+                    }
+                }
+                timer -= interval;
+            }
+
+
+            previousTime = currentTime;
+        }
+
+    }
+
     public static int Main(String[] args)
     {
-        StartServer();
-        while(true)
-        {
 
-        }
+        StartServer();
+        Console.CancelKeyPress += new ConsoleCancelEventHandler(OnCancelKeyPress);
+
+        Task.Run(() => { PrintPlayerList(); }, mainCts.Token);
+
+        Console.WriteLine("Press Ctrl+C or close the console window to quit.");
+        Console.ReadLine();
+
         return 0;
     }
 
     static void StartServer()
     {
         IPAddress serverIP = IPAddress.Parse("192.168.2.43");
-        IPEndPoint serverEP = new IPEndPoint(serverIP, 12581);
+        IPEndPoint serverTCPEP = new IPEndPoint(serverIP, 8888);
+        IPEndPoint serverUDPEP = new IPEndPoint(serverIP, 8889);
 
         serverTCP = new Socket(serverIP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
-        serverUDP = new UdpClient(serverEP);
+        serverUDP = new UdpClient(serverUDPEP);
 
         try
         {
-            serverTCP.Bind(serverEP);
+            serverTCP.Bind(serverTCPEP);
             serverTCP.Listen(10);
 
             Task.Run(() => { TCPAccept(); }, mainCts.Token);
@@ -119,7 +160,6 @@ public class ServerConsole
                     Task.Run(() => { PlayerTCPReceive(headerBuffer[1]); }, playerDList[headerBuffer[1]].playerCTS.Token);
                 }
 
-                Console.WriteLine("Player Connected: ID: " + headerBuffer[1] + " Name: " + name);
             }
         }
         catch (Exception ex)
@@ -194,5 +234,13 @@ public class ServerConsole
     static void ServerUDPReceive()
     {
 
+    }
+
+    static void OnCancelKeyPress(object sender, ConsoleCancelEventArgs args)
+    {
+        Console.WriteLine("Quitting...");
+        serverTCP.Close();
+        serverUDP.Close();
+        mainCts.Cancel();
     }
 }
