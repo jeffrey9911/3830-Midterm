@@ -6,6 +6,7 @@ using System.Linq.Expressions;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Security.Cryptography;
+using System.Reflection.Metadata;
 
 public struct Player
 {
@@ -56,13 +57,15 @@ public class ServerConsole
             {
                 if(playerDList.Count > 0)
                 {
+                    Console.WriteLine("==========================================");
                     foreach (Player player in playerDList.Values)
                     {
-                        Console.WriteLine("==========================================");
+                        
                         Console.WriteLine("ID: {0}, Name: {1}", player.playerID, player.playerName);
                         Console.WriteLine("POS: {0}, {1}, {2}", player.playerPosition[0], player.playerPosition[1], player.playerPosition[2]);
-                        Console.WriteLine("==========================================");
+                        
                     }
+                    Console.WriteLine("==========================================");
                 }
                 timer -= interval;
             }
@@ -79,7 +82,7 @@ public class ServerConsole
         StartServer();
         Console.CancelKeyPress += new ConsoleCancelEventHandler(OnCancelKeyPress);
 
-        Task.Run(() => { PrintPlayerList(); }, mainCts.Token);
+        //Task.Run(() => { PrintPlayerList(); }, mainCts.Token);
 
         Console.WriteLine("Press Ctrl+C or close the console window to quit.");
         Console.ReadLine();
@@ -175,11 +178,12 @@ public class ServerConsole
     /// <param name="pName"></param>
     static void PlayerTCPReceive(short pID)
     {
-
+        
         try
         {
             if (playerDList.ContainsKey(pID))
             {
+                
                 byte[] recvBuffer = new byte[1024];
                 int recv = playerDList[pID].playerTCPSocket.Receive(recvBuffer);
 
@@ -191,7 +195,9 @@ public class ServerConsole
                 {
                     // Chat
                     case 1:
+                        
                         string content = Encoding.ASCII.GetString(recvBuffer, 4, recv - 4);
+                        
 
                         string chatPiece = "[" + playerDList[pID].playerName + " - " + DateTime.Now.ToString("MM/dd hh:mm:ss tt") + "]: " + content;
                         chatList.Add(chatPiece);
@@ -205,9 +211,10 @@ public class ServerConsole
 
                         foreach(Player player in playerDList.Values)
                         {
-                            if(player.playerID != pID)
+                            player.playerTCPSocket.Send(msgToSend);
+                            if (player.playerID != pID)
                             {
-                                player.playerTCPSocket.Send(msgToSend);
+                                
                             }
                         }
 

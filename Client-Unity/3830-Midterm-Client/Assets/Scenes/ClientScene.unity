@@ -1560,7 +1560,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 537643529}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 852550992}
+        m_TargetAssemblyTypeName: NetworkManager, Assembly-CSharp
+        m_MethodName: SendMessage
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &537643529
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1918,6 +1930,7 @@ GameObject:
   m_Component:
   - component: {fileID: 852550993}
   - component: {fileID: 852550992}
+  - component: {fileID: 852550994}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -1940,6 +1953,7 @@ MonoBehaviour:
   _inp_playername: {fileID: 965603786}
   _inp_ip: {fileID: 1891838242}
   _inp_port: {fileID: 173841597}
+  _inp_message: {fileID: 1727985854}
   _panelLogin: {fileID: 547686472}
 --- !u!4 &852550993
 Transform:
@@ -1956,6 +1970,18 @@ Transform:
   m_Father: {fileID: 0}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &852550994
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 852550991}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 957b54c27d4e6124d9191939b2dc91fc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &910683290
 GameObject:
   m_ObjectHideFlags: 0
@@ -2891,7 +2917,7 @@ GameObject:
   - component: {fileID: 1230910966}
   - component: {fileID: 1230910965}
   m_Layer: 5
-  m_Name: Content
+  m_Name: SCVContent
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
