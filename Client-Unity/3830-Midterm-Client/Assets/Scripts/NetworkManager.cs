@@ -39,8 +39,10 @@ public class NetworkManager : MonoBehaviour
     private static IPEndPoint serverUDPEP;
     private static Socket clientTCPSocket;
     private static Socket clientUDPSocket;
+    private static UdpClient udpClient;
 
     static bool isReady = false;
+    static bool isUDPSetup = false;
 
     float updateInterval = 1.0f;
     float timer = 0.0f;
@@ -56,14 +58,15 @@ public class NetworkManager : MonoBehaviour
 
     public void LoginToServer()
     {
-        //IPAddress ip = IPAddress.Parse(_inp_ip.text);
+        //IPAddress ip = IPAddress.Parse("192.168.2.43"/*_inp_ip.text*/);
         IPAddress ip = Dns.GetHostAddresses("jeffrey9911.ddns.net")[0];
         serverTCPEP = new IPEndPoint(ip, 8888/*int.Parse(_inp_port.text)*/);
-        serverUDPEP = new IPEndPoint(ip, 8889/*int.Parse(_inp_port.text)*/);
+        serverUDPEP = new IPEndPoint(ip, 8888/*int.Parse(_inp_port.text)*/);
         //serverUDPEP = new IPEndPoint(IPAddress.Any, 0/*int.Parse(_inp_port.text)*/);
 
         clientTCPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         clientUDPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
+        udpClient = new UdpClient(0);
 
         cts = new CancellationTokenSource();
 
@@ -89,7 +92,7 @@ public class NetworkManager : MonoBehaviour
 
             clientTCPSocket.Send(loginMsg);
             isReady = true;
-            Task.Run(() => { ClientUDPReceive(); }, cts.Token);
+            //Task.Run(() => { ClientUDPReceive(); }, cts.Token);
             ClientTCPReceive();
         }
         catch (Exception ex)
@@ -119,6 +122,10 @@ public class NetworkManager : MonoBehaviour
                     string newMsg = Encoding.ASCII.GetString(GetContent(recvBuffer));
                     UnityMainThreadDispatcher.Instance().Enqueue(() => CreateMessage(newMsg));
                     break;
+                case 3:
+                    
+                    
+                    break;
                 default:
                     break;
             }
@@ -143,7 +150,7 @@ public class NetworkManager : MonoBehaviour
 
         byte[] byPosWH = new byte[fPos.Length * 4 + 4];
         Buffer.BlockCopy(CreateHeader(0), 0, byPosWH, 0, 4);
-        Buffer.BlockCopy(fPos, 0, byPosWH, 4, byPosWH.Length - 4);
+        Buffer.BlockCopy(fPos, 0, byPosWH, 4, 12);
 
         clientUDPSocket.SendTo(byPosWH, serverUDPEP);
         //clientUDP.Send(byPosWH, byPosWH.Length, serverUDPEP);
@@ -151,10 +158,13 @@ public class NetworkManager : MonoBehaviour
 
     static void ClientUDPReceive()
     {
+        Debug.Log("UDP RE");
         try
         {
             byte[] getBuffer = new byte[1024];
-            int recv = clientUDPSocket.Receive(getBuffer);
+            IPEndPoint sEP = new IPEndPoint(IPAddress.Any, 0);
+            getBuffer = udpClient.Receive(ref sEP);
+            //int recv = clientUDPSocket.Receive(getBuffer);
 
             Debug.Log(GetHeader(getBuffer));
         }
@@ -163,6 +173,8 @@ public class NetworkManager : MonoBehaviour
             Debug.LogException(ex);
             throw;
         }
+
+        ClientUDPReceive();
     }
 
     static short GetHeader(byte[] header)

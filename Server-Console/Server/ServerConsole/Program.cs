@@ -14,7 +14,8 @@ public struct Player
     public short playerID { get; set; }
     public string playerName {  get; set; }
     public Socket playerTCPSocket { get; set; }
-    public IPEndPoint playerUDPEP { get; set; }
+    public byte[] pEPiP = new byte[30];
+    public int[] pEPpo = new int[1];
     public float[] playerPosition { get; set; }
 
     public Player(Socket consSocket, short consID, string consName)
@@ -94,7 +95,7 @@ public class ServerConsole
     {
         IPAddress serverIP = IPAddress.Parse("192.168.2.43");
         IPEndPoint serverTCPEP = new IPEndPoint(serverIP, 8888);
-        IPEndPoint serverUDPEP = new IPEndPoint(serverIP, 8889);
+        IPEndPoint serverUDPEP = new IPEndPoint(serverIP, 8888);
 
         serverTCP = new Socket(serverIP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         serverUDP = new UdpClient(serverUDPEP);
@@ -241,13 +242,22 @@ public class ServerConsole
         IPEndPoint clientEP = new IPEndPoint(IPAddress.Any, 0);
         recvBuffer = serverUDP.Receive(ref clientEP);
 
+        
+
         switch(GetHeader(recvBuffer))
         {
             case 0:
                 short pid = GetID(recvBuffer);
-                Console.WriteLine(pid.ToString());
+
                 if(playerDList.ContainsKey(pid))
                 {
+                    byte[] ip = Encoding.ASCII.GetBytes(clientEP.Address.ToString());
+                    int[] port = { clientEP.Port };
+                    Buffer.BlockCopy(ip, 0, playerDList[pid].pEPiP, 0, ip.Length);
+                    Buffer.BlockCopy(port, 0, playerDList[pid].pEPpo, 0, 4);
+
+                    Console.WriteLine("SETUP!: " + Encoding.ASCII.GetString(playerDList[pid].pEPiP) + " " + playerDList[pid].pEPpo[0]);
+
                     Buffer.BlockCopy(GetContent(recvBuffer), 0, playerDList[pid].playerPosition, 0, 12);
 
                     short[] header = { 0, -1 };
@@ -264,9 +274,21 @@ public class ServerConsole
                         ind++;
                     }
 
-                    Console.WriteLine(allTrans.Length);
 
-                    serverUDP.Send(allTrans, clientEP);
+                    foreach(Player player in playerDList.Values)
+                    {
+                        if(player.playerID != pid)
+                        {
+                            serverUDP.Send(allTrans, new IPEndPoint(IPAddress.Parse(Encoding.ASCII.GetString(player.pEPiP)), player.pEPpo[0]));
+                        }
+                        
+                    }
+
+                    //Console.WriteLine(allTrans.Length);
+
+                    //Console.WriteLine(clientEP.Address.ToString() + " " + clientEP.Port.ToString());
+                    
+                    //playerDList[pid].playerTCPSocket.Send(allTrans);
 
                 }
                 break;
@@ -293,8 +315,8 @@ public class ServerConsole
 
     static byte[] GetContent(byte[] buffer)
     {
-        byte[] returnBy = new byte[buffer.Length - 2];
-        Buffer.BlockCopy(buffer, 2, returnBy, 0, returnBy.Length);
+        byte[] returnBy = new byte[buffer.Length - 4];
+        Buffer.BlockCopy(buffer, 4, returnBy, 0, returnBy.Length);
         return returnBy;
     }
 
