@@ -50,10 +50,10 @@ public class NetworkManager : MonoBehaviour
     // FLAGS
     public static bool isLogin = false;
     public static bool isUDPSetup = false;
-
+    public static bool isReceiveUDP = false;
 
     // TIMERS
-    float updateInterval = 1.0f;
+    float updateInterval = 0.1f;
     float timer = 0.0f;
 
     public static bool test = false;
@@ -75,8 +75,8 @@ public class NetworkManager : MonoBehaviour
 
     public void LoginToServer()
     {
-        //IPAddress ip = IPAddress.Parse("192.168.2.43"/*_inp_ip.text*/);
-        IPAddress ip = Dns.GetHostAddresses("jeffrey9911.ddns.net")[0];
+        IPAddress ip = IPAddress.Parse("192.168.2.43"/*_inp_ip.text*/);
+        //
         serverTCPEP = new IPEndPoint(ip, 8888/*int.Parse(_inp_port.text)*/);
         serverUDPEP = new IPEndPoint(ip, 8889/*int.Parse(_inp_port.text)*/);
         //serverUDPEP = new IPEndPoint(IPAddress.Any, 0/*int.Parse(_inp_port.text)*/);
@@ -163,7 +163,11 @@ public class NetworkManager : MonoBehaviour
                     case 9:
                         Debug.Log("TCP9");
                         short pid = GetHeader(recvBuffer, 2);
+                        Debug.Log("9: " + pid);
+
                         string newPlayerName = Encoding.ASCII.GetString(GetContent(recvBuffer, 4));
+                        Debug.Log("9: " + newPlayerName);
+
                         UnityMainThreadDispatcher.Instance().Enqueue(() => NetPlayerManager.AddPlayer(ref pid, ref newPlayerName));
 
                         break;
@@ -197,7 +201,14 @@ public class NetworkManager : MonoBehaviour
         Buffer.BlockCopy(fPos, 0, byPosWH, 4, 12);
 
         clientUDPSocket.SendTo(byPosWH, serverUDPEP);
-        //clientUDP.Send(byPosWH, byPosWH.Length, serverUDPEP);
+
+        if(isReceiveUDP)
+        {
+            Thread thread = new Thread(ClientUDPReceive);
+            threads.Add(thread);
+            thread.Start();
+            isReceiveUDP = false;
+        }
     }
 
     static void ClientUDPReceive()
@@ -211,10 +222,12 @@ public class NetworkManager : MonoBehaviour
 
             if(GetHeader(getBuffer, 0) == 1)
             {
+                short pID = GetHeader(getBuffer, 2);
                 float[] playerPos = new float[3];
                 Buffer.BlockCopy(getBuffer, 4, playerPos, 0, 12);
 
-                short pID = GetHeader(getBuffer, 2);
+
+                Debug.Log(recv + "POS RECEIVED: " + pID.ToString() + " " + playerPos[0] + " " + playerPos[1] + " " + playerPos[2]);
 
                 UnityMainThreadDispatcher.Instance().Enqueue(() => NetPlayerManager.UpdatePlayer(ref pID, ref playerPos));
             }
