@@ -14,13 +14,22 @@ public struct Player
     public short playerID { get; set; }
     public string playerName {  get; set; }
     public Socket playerTCPSocket { get; set; }
-    public byte[] pEPiP = new byte[30];
-    public int[] pEPpo = new int[1];
+    public IPEndPoint playerEndPoint { get; set; }
     public float[] playerPosition { get; set; }
 
     public Player(Socket consSocket, short consID, string consName)
     {
         playerCTS = new CancellationTokenSource();
+        playerID = consID;
+        playerTCPSocket = consSocket;
+        playerName = consName;
+        playerPosition = new float[3];
+    }
+
+    public Player(Socket consSocket, IPEndPoint consEP, short consID, string consName)
+    {
+        playerCTS = new CancellationTokenSource();
+        playerEndPoint = consEP;
         playerID = consID;
         playerTCPSocket = consSocket;
         playerName = consName;
@@ -39,6 +48,7 @@ public class ServerConsole
     public static Dictionary<short, Player> playerDList = new Dictionary<short, Player>();
     public static List<string> chatList = new List<string>();
 
+    static Random random = new Random();
 
     static void PrintPlayerList()
     {
@@ -95,7 +105,7 @@ public class ServerConsole
     {
         IPAddress serverIP = IPAddress.Parse("192.168.2.43");
         IPEndPoint serverTCPEP = new IPEndPoint(serverIP, 8888);
-        IPEndPoint serverUDPEP = new IPEndPoint(serverIP, 8888);
+        IPEndPoint serverUDPEP = new IPEndPoint(serverIP, 8889);
 
         serverTCP = new Socket(serverIP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         serverUDP = new UdpClient(serverUDPEP);
@@ -105,8 +115,10 @@ public class ServerConsole
             serverTCP.Bind(serverTCPEP);
             serverTCP.Listen(10);
 
+
+            serverUDP.BeginReceive(ServerUDPReceiveCallBack, null);
+
             Task.Run(() => { TCPAccept(); }, mainCts.Token);
-            Task.Run(() => { ServerUDPReceive(); }, mainCts.Token);
         }
         catch (Exception ex)
         {
@@ -120,7 +132,7 @@ public class ServerConsole
     /// </summary>
     static void TCPAccept()
     {
-        Console.WriteLine("");
+        Console.WriteLine("TCP - Accepting");
         try
         {
             Socket acceptedClientSocket = serverTCP.Accept();
@@ -146,25 +158,48 @@ public class ServerConsole
             byte[] recvBuffer = new byte[1024];
             int recv = pSocket.Receive(recvBuffer);
 
-            short[] headerBuffer = new short[2];
-            Buffer.BlockCopy(recvBuffer, 0, headerBuffer, 0, 4);
+            short header = GetHeader(recvBuffer, 0);
 
-            if (headerBuffer[0] == 0)
+            if (header == 0)
             {
-                while (playerDList.ContainsKey(headerBuffer[1]))
+                string name = Encoding.ASCII.GetString(GetContent(recvBuffer.Take(recv).ToArray(), 2));
+                Console.WriteLine("Pname length: " + name.Length + " VS: " + recv);
+                short id = (short)random.Next(1000, 9999);
+
+                playerDList.Add(id, new Player(pSocket, id, name));
+
+                Console.WriteLine("Player Created: {0}: {1}", id, name);
+
+                if (playerDList.ContainsKey(id))
                 {
-                    headerBuffer[1] += 1;
+                    string playerList = id.ToString() + name;
+
+                    foreach(Player player in playerDList.Values)
+                    {
+                        if(player.playerID != id)
+                        {
+                            playerList += "#" + player.playerID.ToString() + player.playerName;
+                        }
+                        
+                    }
+
+                    byte[] allPlayer = Encoding.ASCII.GetBytes(playerList);
+
+                    pSocket.Send(AddHeader(allPlayer, 0));
+
+                    foreach (Player player in playerDList.Values)
+                    {
+                        if(player.playerID != id)
+                        {
+                            
+                            player.playerTCPSocket.Send(AddHeader(Encoding.ASCII.GetBytes(id.ToString() + name), 9));
+                        }
+                    }
+
+                    Task.Run(() => { PlayerTCPReceive(id); }, playerDList[id].playerCTS.Token);
+
+
                 }
-
-                string name = Encoding.ASCII.GetString(recvBuffer, 4, recv - 4);
-                playerDList.Add(headerBuffer[1], new Player(pSocket, headerBuffer[1], name));
-
-
-                if(playerDList.ContainsKey(headerBuffer[1]))
-                {
-                    Task.Run(() => { PlayerTCPReceive(headerBuffer[1]); }, playerDList[headerBuffer[1]].playerCTS.Token);
-                }
-
             }
         }
         catch (Exception ex)
@@ -180,7 +215,6 @@ public class ServerConsole
     /// <param name="pName"></param>
     static void PlayerTCPReceive(short pID)
     {
-        
         try
         {
             if (playerDList.ContainsKey(pID))
@@ -199,21 +233,24 @@ public class ServerConsole
                     case 1:
                         
                         string content = Encoding.ASCII.GetString(recvBuffer, 4, recv - 4);
-                        
+                        //string msgPlayerName = "["+playerDList[pID].playerName.ToString();
+                        //string msgTime = "] <"+DateTime.Now.ToString("MM/dd hh:mm:ss tt")+"> ";
 
-                        string chatPiece = "[" + playerDList[pID].playerName + " - " + DateTime.Now.ToString("MM/dd hh:mm:ss tt") + "]: \n" + content;
+
+
+                        string chatPiece = $"[<{DateTime.Now.ToString("MM/dd hh:mm:ss tt")}> {playerDList[pID].playerName}]: {content}";
+
+                        Console.WriteLine(chatPiece);
+                        
                         chatList.Add(chatPiece);
 
-                        byte[] byPiece = Encoding.ASCII.GetBytes(chatPiece);
-                        short[] byHeader = { 1 };
-                        byte[] msgToSend = new byte[2 + byPiece.Length];
+                        byte[] pieceMsg = AddHeader(Encoding.ASCII.GetBytes(chatPiece), 1);
 
-                        Buffer.BlockCopy(byHeader, 0, msgToSend, 0, 2);
-                        Buffer.BlockCopy(byPiece, 0, msgToSend, 2, byPiece.Length);
+                        Console.WriteLine("String: {0}, Bytes[]: {1}", chatPiece.Length, pieceMsg.Length);
 
-                        foreach(Player player in playerDList.Values)
+                        foreach (Player player in playerDList.Values)
                         {
-                            player.playerTCPSocket.Send(msgToSend);
+                            player.playerTCPSocket.Send(pieceMsg);
                         }
 
                         break;
@@ -236,6 +273,60 @@ public class ServerConsole
 
     }
 
+
+    static void ServerUDPReceiveCallBack(IAsyncResult result)
+    {
+        //UdpClient udpClient = (UdpClient)result.AsyncState;
+        IPEndPoint clientEP = new IPEndPoint(IPAddress.Any, 0);
+        byte[] recvBuffer = serverUDP.EndReceive(result, ref clientEP);
+
+
+        switch (GetHeader(recvBuffer, 0))
+        {
+            case 0:
+                short pid = GetHeader(recvBuffer, 2);
+
+                if (playerDList.ContainsKey(pid))
+                {
+                    Player setupPlayer = new Player(playerDList[pid].playerTCPSocket, clientEP, playerDList[pid].playerID, playerDList[pid].playerName);
+
+                    playerDList[pid] = setupPlayer;
+
+                    Console.WriteLine("SETUP!: " + playerDList[pid].playerEndPoint.Address + " " + playerDList[pid].playerEndPoint.Port);
+
+                }
+                break;
+
+            case 1:
+                short playerid = GetHeader(recvBuffer, 2);
+                if(playerDList.ContainsKey(playerid))
+                {
+                    Buffer.BlockCopy(GetContent(recvBuffer, 4), 0, playerDList[playerid].playerPosition, 0, 12);
+
+                    //Console.WriteLine("GET Position: {0}: {1}, {2}, {3}", playerid,
+                    //    playerDList[playerid].playerPosition[0],
+                     //   playerDList[playerid].playerPosition[1],
+                       // playerDList[playerid].playerPosition[2]);
+
+                    foreach (Player player in playerDList.Values)
+                    {
+                        if(player.playerID != playerid)
+                        {
+                            serverUDP.Send(recvBuffer, recvBuffer.Length, player.playerEndPoint);
+                        }
+                    }
+
+                }
+                break;
+
+            default:
+                break;
+        }
+        serverUDP.BeginReceive(ServerUDPReceiveCallBack, null);
+    }
+
+
+    /*
     static void ServerUDPReceive()
     {
         byte[] recvBuffer = new byte[1024];
@@ -299,26 +390,32 @@ public class ServerConsole
         ServerUDPReceive();
     }
 
-    static short GetHeader(byte[] header)
+    */
+
+    static short GetHeader(byte[] bytes, int offset)
     {
         short[] sheader = new short[1];
-        Buffer.BlockCopy(header, 0, sheader, 0, 2);
+        Buffer.BlockCopy(bytes, offset, sheader, 0, 2);
         return sheader[0];
     }
 
-    static short GetID(byte[] header)
+    static byte[] AddHeader(byte[] bytes, short header)
     {
-        short[] sheader = new short[1];
-        Buffer.BlockCopy(header, 2, sheader, 0, 2);
-        return sheader[0];
+        byte[] buffer = new byte[bytes.Length + 2];
+        short[] sBuffer = { header };
+        Buffer.BlockCopy(sBuffer, 0, buffer, 0, 2);
+        Buffer.BlockCopy(bytes, 0, buffer, 2, bytes.Length);
+        return buffer;
     }
 
-    static byte[] GetContent(byte[] buffer)
+    static byte[] GetContent(byte[] buffer, int offset)
     {
-        byte[] returnBy = new byte[buffer.Length - 4];
-        Buffer.BlockCopy(buffer, 4, returnBy, 0, returnBy.Length);
+        byte[] returnBy = new byte[buffer.Length - offset];
+        Buffer.BlockCopy(buffer, offset, returnBy, 0, returnBy.Length);
         return returnBy;
     }
+
+  
 
     static void OnCancelKeyPress(object sender, ConsoleCancelEventArgs args)
     {
