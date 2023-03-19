@@ -29,27 +29,44 @@ public class NetworkManager : MonoBehaviour
 
     public GameObject _player;
 
-    private static System.Random rand = new System.Random();
-
-    private static CancellationTokenSource cts;
-    private static short localPlayerID;
-    private string localPlayerName;
-
     private static IPEndPoint serverTCPEP;
-    private static IPEndPoint serverUDPEP;
-    private static Socket clientTCPSocket;
-    private static Socket clientUDPSocket;
-    private static UdpClient udpClient;
+    public static IPEndPoint serverUDPEP;
 
-    static bool isReady = false;
-    static bool isUDPSetup = false;
+    public static Socket clientTCPSocket;
+    public static Socket clientUDPSocket;
+    //private static UdpClient udpClient;
 
+    public static byte[] tcpReceiveBuffer = new byte[1024];
+    public static byte[] tcpSendBuffer = new byte[1024];
+
+    public static byte[] udpReceiveBuffer = new byte[1024];
+    public static byte[] udpSendBuffer = new byte[1024];
+
+    // Threads control
+    private static Mutex mutex = new Mutex();
+    public static List<Thread> threads = new List<Thread>();
+
+
+    // FLAGS
+    public static bool isLogin = false;
+    public static bool isUDPSetup = false;
+
+
+    // TIMERS
     float updateInterval = 1.0f;
     float timer = 0.0f;
+
+    public static bool test = false;
+
+    private void Start()
+    {
+        
+    }
+
     private void Update()
     {
         timer += Time.deltaTime;
-        if(timer >= updateInterval && isReady)
+        if(timer >= updateInterval && isUDPSetup)
         {
             ClientUDPPosition();
             timer -= updateInterval;
@@ -61,17 +78,17 @@ public class NetworkManager : MonoBehaviour
         //IPAddress ip = IPAddress.Parse("192.168.2.43"/*_inp_ip.text*/);
         IPAddress ip = Dns.GetHostAddresses("jeffrey9911.ddns.net")[0];
         serverTCPEP = new IPEndPoint(ip, 8888/*int.Parse(_inp_port.text)*/);
-        serverUDPEP = new IPEndPoint(ip, 8888/*int.Parse(_inp_port.text)*/);
+        serverUDPEP = new IPEndPoint(ip, 8889/*int.Parse(_inp_port.text)*/);
         //serverUDPEP = new IPEndPoint(IPAddress.Any, 0/*int.Parse(_inp_port.text)*/);
 
         clientTCPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         clientUDPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
-        udpClient = new UdpClient(0);
-
-        cts = new CancellationTokenSource();
-
-        Task.Run(() => { ClientLogin(_inp_playername.text); }, cts.Token);
-
+        
+        //dpClient = new UdpClient(0);
+        Thread thread = new Thread(() => ClientLogin(_inp_playername.text));
+        threads.Add(thread);
+        thread.Start();
+        
         _panelLogin.SetActive(false);
     }
 
@@ -80,19 +97,22 @@ public class NetworkManager : MonoBehaviour
         try
         {
             clientTCPSocket.Connect(serverTCPEP);
+            Debug.Log("TCP Connect");
+            //clientUDPSocket.Bind(serverUDPEP);
+            clientUDPSocket.Bind(new IPEndPoint(IPAddress.Any, 0));
+            Debug.Log("UDP Bind");
             // Connected
 
-            localPlayerID = (short)rand.Next(1000, 9999);
-            short[] headerBuffer = { 0, localPlayerID };
-            byte[] pName = Encoding.ASCII.GetBytes(playername);
-            byte[] loginMsg = new byte[headerBuffer.Length * 2 + pName.Length];
+            byte[] loginMsg = AddHeader(Encoding.ASCII.GetBytes(playername), 0);
 
-            Buffer.BlockCopy(headerBuffer, 0, loginMsg, 0, 4);
-            Buffer.BlockCopy(pName, 0, loginMsg, 4, pName.Length);
+
+            Debug.Log("Pname length: " + loginMsg.Length);
 
             clientTCPSocket.Send(loginMsg);
-            isReady = true;
-            //Task.Run(() => { ClientUDPReceive(); }, cts.Token);
+            Debug.Log("Login");
+            isLogin = true;
+
+
             ClientTCPReceive();
         }
         catch (Exception ex)
@@ -103,53 +123,77 @@ public class NetworkManager : MonoBehaviour
 
     static void ClientTCPReceive()
     {
-        Debug.Log("TCP RECEIVE");
-
-        try
+        if(mutex.WaitOne())
         {
-            byte[] recvBuffer = new byte[1024];
-            int recv = clientTCPSocket.Receive(recvBuffer);
+            Debug.Log("TCP RECEIVE");
 
-            Debug.Log(recv);
-
-
-            switch (GetHeader(recvBuffer))
+            try
             {
-                case 0:
-                    break;
+                byte[] recvBuffer = new byte[2048];
+                int recv = clientTCPSocket.Receive(recvBuffer);
 
-                case 1:
-                    string newMsg = Encoding.ASCII.GetString(GetContent(recvBuffer));
-                    UnityMainThreadDispatcher.Instance().Enqueue(() => CreateMessage(newMsg));
-                    break;
-                case 3:
-                    
-                    
-                    break;
-                default:
-                    break;
+                switch (GetHeader(recvBuffer, 0))
+                {
+                    case 0:
+                        Debug.Log("TCP0");
+                        if(!isUDPSetup)
+                        {
+                            string allPlayer = Encoding.ASCII.GetString(GetContent(recvBuffer, 2));
+                            UnityMainThreadDispatcher.Instance().Enqueue(() => NetPlayerManager.InitialPlayerList(ref allPlayer));
+                        }
+                        else
+                        {
+                            Debug.Log("Initialize Ignored");
+                        }
+                        
+                        
+                        break;
+
+                    case 1:
+                        Debug.Log("TCP1");
+                        foreach (byte b in recvBuffer)
+                        {
+                            Debug.Log(b);
+                        }
+
+
+
+                        UnityMainThreadDispatcher.Instance().Enqueue(() => CreateMessage(Encoding.ASCII.GetString(GetContent(recvBuffer, 2))));
+                        break;
+                    case 9:
+                        Debug.Log("TCP9");
+                        short pid = GetHeader(recvBuffer, 2);
+                        string newPlayerName = Encoding.ASCII.GetString(GetContent(recvBuffer, 4));
+                        UnityMainThreadDispatcher.Instance().Enqueue(() => NetPlayerManager.AddPlayer(ref pid, ref newPlayerName));
+
+                        break;
+                    default:
+                        break;
+                }
+                
             }
-            ClientTCPReceive();
+            catch (Exception ex)
+            {
+                Debug.LogException(ex);
+                throw;
+            }
         }
-        catch (Exception ex)
-        {
-            Debug.LogException(ex);
-            throw;
-        }
-        
+
+        ClientTCPReceive();
     }
 
     void ClientUDPPosition()
     {
         float[] fPos =
         {
-            _player.transform.position.x,
-            _player.transform.position.y,
-            _player.transform.position.z
+            NetPlayerManager.localPlayerObj.transform.position.x,
+            NetPlayerManager.localPlayerObj.transform.position.y,
+            NetPlayerManager.localPlayerObj.transform.position.z
         };
 
         byte[] byPosWH = new byte[fPos.Length * 4 + 4];
-        Buffer.BlockCopy(CreateHeader(0), 0, byPosWH, 0, 4);
+        short[] shorts = { 1, NetPlayerManager.localPlayerID };
+        Buffer.BlockCopy(shorts, 0, byPosWH, 0, 4);
         Buffer.BlockCopy(fPos, 0, byPosWH, 4, 12);
 
         clientUDPSocket.SendTo(byPosWH, serverUDPEP);
@@ -163,10 +207,19 @@ public class NetworkManager : MonoBehaviour
         {
             byte[] getBuffer = new byte[1024];
             IPEndPoint sEP = new IPEndPoint(IPAddress.Any, 0);
-            getBuffer = udpClient.Receive(ref sEP);
-            //int recv = clientUDPSocket.Receive(getBuffer);
+            int recv = clientUDPSocket.Receive(getBuffer);
 
-            Debug.Log(GetHeader(getBuffer));
+            if(GetHeader(getBuffer, 0) == 1)
+            {
+                float[] playerPos = new float[3];
+                Buffer.BlockCopy(getBuffer, 4, playerPos, 0, 12);
+
+                short pID = GetHeader(getBuffer, 2);
+
+                UnityMainThreadDispatcher.Instance().Enqueue(() => NetPlayerManager.UpdatePlayer(ref pID, ref playerPos));
+            }
+
+            
         }
         catch (Exception ex)
         {
@@ -177,25 +230,26 @@ public class NetworkManager : MonoBehaviour
         ClientUDPReceive();
     }
 
-    static short GetHeader(byte[] header)
+    static short GetHeader(byte[] bytes, int offset)
     {
         short[] sheader = new short[1];
-        Buffer.BlockCopy(header, 0, sheader, 0, 2);
+        Buffer.BlockCopy(bytes, offset, sheader, 0, 2);
         return sheader[0];
     }
 
-    static byte[] CreateHeader(short header)
+    static byte[] AddHeader(byte[] bytes, short header)
     {
-        short[] shorts = { header, localPlayerID };
-        byte[] retBy = new byte[shorts.Length * 2];
-        Buffer.BlockCopy(shorts, 0, retBy, 0, 4);
-        return retBy;
+        byte[] buffer = new byte[bytes.Length + 2];
+        short[] sBuffer = { header };
+        Buffer.BlockCopy(sBuffer, 0, buffer, 0, 2);
+        Buffer.BlockCopy(bytes, 0, buffer, 2, bytes.Length);
+        return buffer;
     }
 
-    static byte[] GetContent(byte[] buffer)
+    static byte[] GetContent(byte[] buffer, int offset)
     {
-        byte[] returnBy = new byte[buffer.Length - 2];
-        Buffer.BlockCopy(buffer, 2, returnBy, 0, returnBy.Length);
+        byte[] returnBy = new byte[buffer.Length - offset];
+        Buffer.BlockCopy(buffer, offset, returnBy, 0, returnBy.Length);
         return returnBy;
     }
 
@@ -209,15 +263,25 @@ public class NetworkManager : MonoBehaviour
     {
         byte[] text = Encoding.ASCII.GetBytes(_inp_message.text);
         byte[] msg = new byte[text.Length + 4];
-        Buffer.BlockCopy(CreateHeader(1), 0, msg, 0, 4);
+        short[] shorts = { 1, NetPlayerManager.localPlayerID };
+        Buffer.BlockCopy(shorts, 0, msg, 0, 4);
         Buffer.BlockCopy(text, 0, msg, 4, text.Length);
         clientTCPSocket.Send(msg);
         _inp_message.text = "";
     }
 
+    public void TestThread()
+    {
+        test = true;
+        Thread.CurrentThread.Abort();
+    }
+
     private void OnApplicationQuit()
     {
-        cts.Cancel();
+        foreach (Thread thread in threads)
+        {
+            thread.Abort();
+        }
         clientTCPSocket.Close();
         clientUDPSocket.Close();
     }
