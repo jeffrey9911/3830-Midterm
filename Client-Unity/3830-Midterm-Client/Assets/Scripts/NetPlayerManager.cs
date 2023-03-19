@@ -7,9 +7,9 @@ using System;
 
 public struct Player
 {
-    short playerID;
-    string playerName;
-    GameObject playerObj;
+    public short playerID;
+    public string playerName;
+    public GameObject playerObj;
 
     public Player(short consID, string consName,GameObject consObj)
     {
@@ -28,18 +28,39 @@ public class NetPlayerManager : MonoBehaviour
     public static GameObject localPlayerObj;
 
     public static bool isFirstInitialized = false;
-   
+
+
+    //print
+    float timerInterval = 1.0f;
+    float timer;
+
+
+    private void Update()
+    {
+        timer += Time.deltaTime;
+        if(timer >= timerInterval)
+        {
+            if(false)
+            {
+                Debug.Log("===========================");
+                foreach (Player player in playerDList.Values)
+                {
+                    Debug.Log(player.playerName);
+                    Debug.Log(player.playerID);
+                    Debug.Log(player.playerObj.transform.position);
+                }
+                Debug.Log("===========================");
+            }
+            timer -= timerInterval;
+        }
+    }
 
     public static void InitialPlayerList(ref string allPlayer)
     {
         if(allPlayer.Length > 4 && !isFirstInitialized)
         {
             string[] players = allPlayer.Split("#");
-            Debug.Log("players0: " + players[0]);
-            foreach (string str in players)
-            {
-                //Debug.Log(str);
-            }
+            
 
             localPlayerID = short.Parse(players[0].Substring(0, 4));
             Debug.Log("ID :" + localPlayerID);
@@ -52,10 +73,12 @@ public class NetPlayerManager : MonoBehaviour
 
             for (int i = 1; i < players.Length; i++)
             {
+                Debug.Log(players[i] + "CReating");
                 short playerID = short.Parse(players[i].Substring(0, 4));
-                playerDList.Add(playerID, new Player(playerID,
-                    players[i].Substring(4, players[i].Length - 1),
-                    Resources.Load<GameObject>("Player")));
+                Debug.Log("CReating ID: " + playerID);
+                playerDList.Add(playerID, new Player(playerID, players[i].Substring(4, players[i].Length - 4),
+                    Instantiate(Resources.Load<GameObject>("Player"))  ));
+                Debug.Log("CReating Name: " + playerDList[playerID].playerName);
             }
 
             short[] shorts = { 0, localPlayerID };
@@ -64,6 +87,7 @@ public class NetPlayerManager : MonoBehaviour
 
             NetworkManager.clientUDPSocket.SendTo(loginMsg, NetworkManager.serverUDPEP);
             NetworkManager.isUDPSetup = true;
+            NetworkManager.isReceiveUDP = true;
             isFirstInitialized = true;
         }
         
@@ -71,11 +95,14 @@ public class NetPlayerManager : MonoBehaviour
 
     public static void AddPlayer(ref short pID, ref string pName)
     {
-        playerDList.Add(pID, new Player(pID, pName, Resources.Load<GameObject>("Player")));
+        playerDList.Add(pID, new Player(pID, pName, Instantiate(Resources.Load<GameObject>("Player"))));
     }
 
     public static void UpdatePlayer(ref short pID, ref float[] pPos)
     {
-        
+        if(playerDList.ContainsKey(pID))
+        {
+            playerDList[pID].playerObj.transform.position = new Vector3(pPos[0], pPos[1], pPos[2]);
+        }
     }
 }
