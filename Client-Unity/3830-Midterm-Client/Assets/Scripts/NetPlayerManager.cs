@@ -68,6 +68,7 @@ public class NetPlayerManager : MonoBehaviour
             Debug.Log("Name :" + localPlayerName);
             localPlayerObj = Instantiate(Resources.Load<GameObject>("Player"), Vector3.zero, Quaternion.identity);
             localPlayerObj.AddComponent<cube>();
+            localPlayerObj.GetComponent<DisplayedName>()._nameText.text = "YOU";
 
 
 
@@ -76,8 +77,10 @@ public class NetPlayerManager : MonoBehaviour
                 Debug.Log(players[i] + "CReating");
                 short playerID = short.Parse(players[i].Substring(0, 4));
                 Debug.Log("CReating ID: " + playerID);
-                playerDList.Add(playerID, new Player(playerID, players[i].Substring(4, players[i].Length - 4),
-                    Instantiate(Resources.Load<GameObject>("Player"))  ));
+
+                GameObject listedPlayer = Instantiate(Resources.Load<GameObject>("Player"));
+                listedPlayer.GetComponent<DisplayedName>()._nameText.text = players[i].Substring(4, players[i].Length - 4);
+                playerDList.Add(playerID, new Player(playerID, players[i].Substring(4, players[i].Length - 4), listedPlayer));
                 Debug.Log("CReating Name: " + playerDList[playerID].playerName);
             }
 
@@ -95,7 +98,18 @@ public class NetPlayerManager : MonoBehaviour
 
     public static void AddPlayer(ref short pID, ref string pName)
     {
-        playerDList.Add(pID, new Player(pID, pName, Instantiate(Resources.Load<GameObject>("Player"))));
+        GameObject newPlayer = Instantiate(Resources.Load<GameObject>("Player"));
+        newPlayer.GetComponent<DisplayedName>()._nameText.text = pName;
+        playerDList.Add(pID, new Player(pID, pName, newPlayer));
+    }
+
+    public static void DeletePlayer(ref short pID)
+    {
+        if(playerDList.ContainsKey(pID))
+        {
+            Destroy(playerDList[pID].playerObj);
+            playerDList.Remove(pID);
+        }
     }
 
     public static void UpdatePlayer(ref short pID, ref float[] pPos)

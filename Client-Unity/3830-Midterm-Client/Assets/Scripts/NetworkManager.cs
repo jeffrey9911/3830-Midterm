@@ -34,7 +34,6 @@ public class NetworkManager : MonoBehaviour
 
     public static Socket clientTCPSocket;
     public static Socket clientUDPSocket;
-    //private static UdpClient udpClient;
 
     public static byte[] tcpReceiveBuffer = new byte[1024];
     public static byte[] tcpSendBuffer = new byte[1024];
@@ -75,16 +74,13 @@ public class NetworkManager : MonoBehaviour
 
     public void LoginToServer()
     {
-        IPAddress ip = IPAddress.Parse("192.168.2.43"/*_inp_ip.text*/);
-        //
-        serverTCPEP = new IPEndPoint(ip, 8888/*int.Parse(_inp_port.text)*/);
-        serverUDPEP = new IPEndPoint(ip, 8889/*int.Parse(_inp_port.text)*/);
-        //serverUDPEP = new IPEndPoint(IPAddress.Any, 0/*int.Parse(_inp_port.text)*/);
+        IPAddress ip = IPAddress.Parse(_inp_ip.text);
+        serverTCPEP = new IPEndPoint(ip, int.Parse(_inp_port.text));
+        serverUDPEP = new IPEndPoint(ip, int.Parse(_inp_port.text) + 1);
 
         clientTCPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Stream, ProtocolType.Tcp);
         clientUDPSocket = new Socket(AddressFamily.InterNetwork, SocketType.Dgram, ProtocolType.Udp);
         
-        //dpClient = new UdpClient(0);
         Thread thread = new Thread(() => ClientLogin(_inp_playername.text));
         threads.Add(thread);
         thread.Start();
@@ -117,7 +113,7 @@ public class NetworkManager : MonoBehaviour
         }
         catch (Exception ex)
         {
-
+            Debug.LogException(ex);
         }
     }
 
@@ -169,6 +165,14 @@ public class NetworkManager : MonoBehaviour
                         Debug.Log("9: " + newPlayerName);
 
                         UnityMainThreadDispatcher.Instance().Enqueue(() => NetPlayerManager.AddPlayer(ref pid, ref newPlayerName));
+
+                        break;
+
+                    case 999:
+                        Debug.Log("TCP 999");
+                        short quitID = GetHeader(recvBuffer, 2);
+
+                        UnityMainThreadDispatcher.Instance().Enqueue(() => NetPlayerManager.DeletePlayer(ref quitID));
 
                         break;
                     default:
