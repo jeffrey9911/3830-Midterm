@@ -13,7 +13,7 @@ public class cube : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
-        transform.Translate(Input.GetAxis("Horizontal") * Time.deltaTime * 2f, 
-            0, Input.GetAxis("Vertical") * Time.deltaTime *2f);   
+        transform.Translate(Input.GetAxis("Horizontal") * Time.deltaTime * 10f, 
+            0, Input.GetAxis("Vertical") * Time.deltaTime *10f);   
     }
 }
