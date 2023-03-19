@@ -26,9 +26,9 @@ public struct Player
         playerPosition = new float[3];
     }
 
-    public Player(Socket consSocket, IPEndPoint consEP, short consID, string consName)
+    public Player(CancellationTokenSource consCTS, Socket consSocket, IPEndPoint consEP, short consID, string consName)
     {
-        playerCTS = new CancellationTokenSource();
+        playerCTS = consCTS;
         playerEndPoint = consEP;
         playerID = consID;
         playerTCPSocket = consSocket;
@@ -68,7 +68,7 @@ public class ServerConsole
             {
                 if(playerDList.Count > 0)
                 {
-                    Console.WriteLine("==========================================");
+                    Console.WriteLine("===========[Server Player List]===========");
                     foreach (Player player in playerDList.Values)
                     {
                         
@@ -89,23 +89,28 @@ public class ServerConsole
 
     public static int Main(String[] args)
     {
+        Console.WriteLine("[Take Input]: Please input server local IP:");
+        string ipAddress = Console.ReadLine();
 
-        StartServer();
+        Console.WriteLine("[Take Input]: Please input server local TCP Port: (UDP port will be set to TCP Port + 1)");
+        int portNumber = int.Parse(Console.ReadLine());
+
+        StartServer(ipAddress, portNumber);
         Console.CancelKeyPress += new ConsoleCancelEventHandler(OnCancelKeyPress);
 
         Task.Run(() => { PrintPlayerList(); }, mainCts.Token);
 
-        Console.WriteLine("Press Ctrl+C or close the console window to quit.");
+        Console.WriteLine("[System Msg]: Server has started, press Ctrl+C or close the console window to quit.");
         Console.ReadLine();
 
         return 0;
     }
 
-    static void StartServer()
+    static void StartServer(string ipA, int portN)
     {
-        IPAddress serverIP = IPAddress.Parse("192.168.2.43");
-        IPEndPoint serverTCPEP = new IPEndPoint(serverIP, 8888);
-        IPEndPoint serverUDPEP = new IPEndPoint(serverIP, 8889);
+        IPAddress serverIP = IPAddress.Parse(ipA);
+        IPEndPoint serverTCPEP = new IPEndPoint(serverIP, portN);
+        IPEndPoint serverUDPEP = new IPEndPoint(serverIP, portN + 1);
 
         serverTCP = new Socket(serverIP.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
         serverUDP = new UdpClient(serverUDPEP);
@@ -132,7 +137,7 @@ public class ServerConsole
     /// </summary>
     static void TCPAccept()
     {
-        Console.WriteLine("TCP - Accepting");
+        Console.WriteLine("[System TCP]: Accepting new players");
         try
         {
             Socket acceptedClientSocket = serverTCP.Accept();
@@ -163,12 +168,12 @@ public class ServerConsole
             if (header == 0)
             {
                 string name = Encoding.ASCII.GetString(GetContent(recvBuffer.Take(recv).ToArray(), 2));
-                Console.WriteLine("Pname length: " + name.Length + " VS: " + recv);
+
                 short id = (short)random.Next(1000, 9999);
 
                 playerDList.Add(id, new Player(pSocket, id, name));
 
-                Console.WriteLine("Player Created: {0}: {1}", id, name);
+                Console.WriteLine("[System TCP]: Player Created: {0}: {1}", id, name);
 
                 if (playerDList.ContainsKey(id))
                 {
@@ -196,7 +201,9 @@ public class ServerConsole
                         }
                     }
 
-                    PlayerTCPReceive(id);
+
+                    Task.Run(() => { PlayerTCPReceive(id); }, playerDList[id].playerCTS.Token);
+                    //PlayerTCPReceive(id);
                 }
             }
         }
@@ -215,60 +222,92 @@ public class ServerConsole
     {
         try
         {
-            if (playerDList.ContainsKey(pID))
+            int nullMessageCount = 0;
+            while(playerDList[pID].playerTCPSocket.Connected)
             {
-                
-                byte[] recvBuffer = new byte[1024];
-                int recv = playerDList[pID].playerTCPSocket.Receive(recvBuffer);
-
-                short[] headerBuffer = new short[2];
-                Buffer.BlockCopy(recvBuffer, 0, headerBuffer, 0, 4);
-
-
-                switch (headerBuffer[0])
+                Console.WriteLine("[System Warning]: Invalid message received: " + nullMessageCount);
+                if (playerDList.ContainsKey(pID))
                 {
-                    // Chat
-                    case 1:
-                        
-                        string content = Encoding.ASCII.GetString(recvBuffer, 4, recv - 4);
-                        //string msgPlayerName = "["+playerDList[pID].playerName.ToString();
-                        //string msgTime = "] <"+DateTime.Now.ToString("MM/dd hh:mm:ss tt")+"> ";
+
+                    byte[] recvBuffer = new byte[1024];
+                    int recv = playerDList[pID].playerTCPSocket.Receive(recvBuffer);
+
+                    short[] headerBuffer = new short[2];
+                    Buffer.BlockCopy(recvBuffer, 0, headerBuffer, 0, 4);
 
 
+                    switch (headerBuffer[0])
+                    {
+                        // Chat
+                        case 1:
 
-                        string chatPiece = $"[<{DateTime.Now.ToString("MM/dd hh:mm:ss tt")}> {playerDList[pID].playerName}]: {content}";
+                            string content = Encoding.ASCII.GetString(recvBuffer, 4, recv - 4);
 
-                        Console.WriteLine(chatPiece);
-                        
-                        chatList.Add(chatPiece);
+                            string chatPiece = $"[<{DateTime.Now.ToString("MM/dd hh:mm:ss tt")}> {playerDList[pID].playerName}]: {content}";
 
-                        byte[] pieceMsg = AddHeader(Encoding.ASCII.GetBytes(chatPiece), 1);
+                            Console.WriteLine(chatPiece);
 
-                        Console.WriteLine("String: {0}, Bytes[]: {1}", chatPiece.Length, pieceMsg.Length);
+                            chatList.Add(chatPiece);
 
-                        foreach (Player player in playerDList.Values)
-                        {
-                            player.playerTCPSocket.Send(pieceMsg);
-                        }
-
-                        break;
+                            byte[] pieceMsg = AddHeader(Encoding.ASCII.GetBytes(chatPiece), 1);
 
 
-                    default:
-                        break;
+                            foreach (Player player in playerDList.Values)
+                            {
+                                player.playerTCPSocket.Send(pieceMsg);
+                            }
+
+                            break;
+
+
+                        default:
+                            nullMessageCount++;
+
+                            if(nullMessageCount >= 100)
+                            {
+                                Console.WriteLine("[System Warning]: Invalid player. Perform player disconnection!");
+                                DisconnectPlayer(pID);
+                            }
+                            break;
+                    }
                 }
             }
+
+
         }
-        catch(Exception ex)
+        catch (Exception ex)
         {
             Console.WriteLine(ex.ToString());
-            playerDList[pID].playerCTS.Cancel();
-            playerDList.Remove(pID);
+            DisconnectPlayer(pID );
             throw;
         }
-        
-        PlayerTCPReceive(pID);
 
+    }
+
+    static void DisconnectPlayer(short pID)
+    {
+        if(playerDList.ContainsKey(pID))
+        {
+            
+            playerDList[pID].playerTCPSocket.Close();
+            playerDList[pID].playerCTS.Cancel();
+            playerDList.Remove(pID);
+
+            byte[] quitMsg = new byte[4];
+            short[] shorts = { 999, pID };
+            Buffer.BlockCopy(shorts, 0, quitMsg, 0, 4);
+            foreach (Player player in playerDList.Values)
+            {
+                player.playerTCPSocket.Send(quitMsg);
+            }
+
+            Console.WriteLine("[System Warning]: Player{0} - {1} has been removed from the server", playerDList[pID].playerID, playerDList[pID].playerName);
+        }
+        else
+        {
+            Console.WriteLine("[System Warning]: Player doesn't exist, nothing is removed");
+        }
+        
     }
 
 
@@ -286,11 +325,11 @@ public class ServerConsole
 
                 if (playerDList.ContainsKey(pid))
                 {
-                    Player setupPlayer = new Player(playerDList[pid].playerTCPSocket, clientEP, playerDList[pid].playerID, playerDList[pid].playerName);
+                    Player setupPlayer = new Player(playerDList[pid].playerCTS, playerDList[pid].playerTCPSocket, clientEP, playerDList[pid].playerID, playerDList[pid].playerName);
 
                     playerDList[pid] = setupPlayer;
 
-                    Console.WriteLine("SETUP!: " + playerDList[pid].playerEndPoint.Address + " " + playerDList[pid].playerEndPoint.Port);
+                    Console.WriteLine("[System UDP]: Endpoint setup: " + playerDList[pid].playerEndPoint.Address + " " + playerDList[pid].playerEndPoint.Port);
 
                 }
                 break;
@@ -316,7 +355,7 @@ public class ServerConsole
                             }
                             else
                             {
-                                Console.WriteLine(player.playerName + "'s endpoint is null");
+                                Console.WriteLine("[System UDP]: " + player.playerName + "'s endpoint is null");
                             }
                             
                         }
@@ -331,72 +370,6 @@ public class ServerConsole
         serverUDP.BeginReceive(ServerUDPReceiveCallBack, null);
     }
 
-
-    /*
-    static void ServerUDPReceive()
-    {
-        byte[] recvBuffer = new byte[1024];
-        IPEndPoint clientEP = new IPEndPoint(IPAddress.Any, 0);
-        recvBuffer = serverUDP.Receive(ref clientEP);
-
-        
-
-        switch(GetHeader(recvBuffer))
-        {
-            case 0:
-                short pid = GetID(recvBuffer);
-
-                if(playerDList.ContainsKey(pid))
-                {
-                    byte[] ip = Encoding.ASCII.GetBytes(clientEP.Address.ToString());
-                    int[] port = { clientEP.Port };
-                    Buffer.BlockCopy(ip, 0, playerDList[pid].pEPiP, 0, ip.Length);
-                    Buffer.BlockCopy(port, 0, playerDList[pid].pEPpo, 0, 4);
-
-                    Console.WriteLine("SETUP!: " + Encoding.ASCII.GetString(playerDList[pid].pEPiP) + " " + playerDList[pid].pEPpo[0]);
-
-                    Buffer.BlockCopy(GetContent(recvBuffer), 0, playerDList[pid].playerPosition, 0, 12);
-
-                    short[] header = { 0, -1 };
-
-                    byte[] allTrans = new byte[2 + playerDList.Count * 14];
-                    Buffer.BlockCopy(header, 0, allTrans, 0, 2);
-
-                    int ind = 0;
-                    foreach(Player player in playerDList.Values)
-                    {
-                        header[1] = player.playerID;
-                        Buffer.BlockCopy(header, 2, allTrans, ind * 14, 2);
-                        Buffer.BlockCopy(player.playerPosition, 0, allTrans, ind * 14 + 2, 12);
-                        ind++;
-                    }
-
-
-                    foreach(Player player in playerDList.Values)
-                    {
-                        if(player.playerID != pid)
-                        {
-                            serverUDP.Send(allTrans, new IPEndPoint(IPAddress.Parse(Encoding.ASCII.GetString(player.pEPiP)), player.pEPpo[0]));
-                        }
-                        
-                    }
-
-                    //Console.WriteLine(allTrans.Length);
-
-                    //Console.WriteLine(clientEP.Address.ToString() + " " + clientEP.Port.ToString());
-                    
-                    //playerDList[pid].playerTCPSocket.Send(allTrans);
-
-                }
-                break;
-
-            default:
-                break;
-        }
-        ServerUDPReceive();
-    }
-
-    */
 
     static short GetHeader(byte[] bytes, int offset)
     {
@@ -425,7 +398,8 @@ public class ServerConsole
 
     static void OnCancelKeyPress(object sender, ConsoleCancelEventArgs args)
     {
-        Console.WriteLine("Quitting...");
+        Console.WriteLine("[System Quit]: Server End Message");
+        Thread.Sleep(1000);
         serverTCP.Close();
         serverUDP.Close();
         mainCts.Cancel();
