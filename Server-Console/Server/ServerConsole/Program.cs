@@ -93,7 +93,7 @@ public class ServerConsole
         StartServer();
         Console.CancelKeyPress += new ConsoleCancelEventHandler(OnCancelKeyPress);
 
-        //Task.Run(() => { PrintPlayerList(); }, mainCts.Token);
+        Task.Run(() => { PrintPlayerList(); }, mainCts.Token);
 
         Console.WriteLine("Press Ctrl+C or close the console window to quit.");
         Console.ReadLine();
@@ -136,7 +136,7 @@ public class ServerConsole
         try
         {
             Socket acceptedClientSocket = serverTCP.Accept();
-            PlayerSetup(acceptedClientSocket);
+            Task.Run(() => { PlayerSetup(acceptedClientSocket); }, mainCts.Token);
 
         }
         catch (Exception ex)
@@ -192,13 +192,11 @@ public class ServerConsole
                         if(player.playerID != id)
                         {
                             
-                            player.playerTCPSocket.Send(AddHeader(Encoding.ASCII.GetBytes(id.ToString() + name), 9));
+                            player.playerTCPSocket.Send(AddHeader(AddHeader(Encoding.ASCII.GetBytes(name), id), 9));
                         }
                     }
 
-                    Task.Run(() => { PlayerTCPReceive(id); }, playerDList[id].playerCTS.Token);
-
-
+                    PlayerTCPReceive(id);
                 }
             }
         }
@@ -312,7 +310,15 @@ public class ServerConsole
                     {
                         if(player.playerID != playerid)
                         {
-                            serverUDP.Send(recvBuffer, recvBuffer.Length, player.playerEndPoint);
+                            if(player.playerEndPoint != null)
+                            {
+                                serverUDP.Send(recvBuffer, recvBuffer.Length, player.playerEndPoint);
+                            }
+                            else
+                            {
+                                Console.WriteLine(player.playerName + "'s endpoint is null");
+                            }
+                            
                         }
                     }
 
