@@ -114,6 +114,7 @@ public class NetworkManager : MonoBehaviour
         catch (Exception ex)
         {
             Debug.LogException(ex);
+            throw;
         }
     }
 
@@ -178,7 +179,9 @@ public class NetworkManager : MonoBehaviour
                     default:
                         break;
                 }
-                
+
+                ClientTCPReceive();
+
             }
             catch (Exception ex)
             {
@@ -187,7 +190,7 @@ public class NetworkManager : MonoBehaviour
             }
         }
 
-        ClientTCPReceive();
+        
     }
 
     void ClientUDPPosition()
@@ -236,7 +239,7 @@ public class NetworkManager : MonoBehaviour
                 UnityMainThreadDispatcher.Instance().Enqueue(() => NetPlayerManager.UpdatePlayer(ref pID, ref playerPos));
             }
 
-            
+            ClientUDPReceive();
         }
         catch (Exception ex)
         {
@@ -244,7 +247,7 @@ public class NetworkManager : MonoBehaviour
             throw;
         }
 
-        ClientUDPReceive();
+        
     }
 
     static short GetHeader(byte[] bytes, int offset)
